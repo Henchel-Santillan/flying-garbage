@@ -1,5 +1,8 @@
-#include <Wire.h>                   // 
+// BOARD: UNO R3
+
+#include <Wire.h>                   // Allows communication with I2C / TWI devices. Here, MPU is I2C.
 #include <Vector.h>                 // Container similar to c++ std::vector
+#include <Servo.h>                  // Used to represent the Electronic Speed Controllers (ESCs)
 #include <SoftwareSerial.h>         // HC-05 Bluetooth
 #include <MPU6050.h>                // MPU6050 IMU
 
@@ -29,18 +32,44 @@ float gyroX, gyroY, gyroZ;
 float accAngleX, accAngleY, gyroAngleX, gyroAngleY, gyroAngleZ;
 float roll, pitch, yaw;
 
+
+//-------- I2C --------//
+byte recvFromI2C;
+unsigned long startTimeI2C;
+
+
+//-------- ESC --------//
+Servo ESC_TOP;    // ESC for the top rotor / blade
+Servo ESC_TAIL;   // ESC for the tail rotor / blade
+
+
+//-------- OTHER CONSTANTS AND SETUP --------//
+
 #define BAUD_RATE 115200
+#define MIN_PULSE_WIDTH 1000
+#define MAX_PULSE_WIDTH 2000
+#define ESC_TOP_PIN 9
+#define ESC_TAIL_PIN 8
+
 
 void setup() {
 
-  // Pin Definitions
+  // Pin Definitions for the bluetooth module (rx == receiver == input, tx == transmitter == output)
   pinMode(rxPin, INPUT);
   pinMode(txPin, OUTPUT);
 
   // Init serial baud rate and bluetooth baud rate 
   // 115200 is chosen for slightly faster reception/transmission speeds
   Serial.begin(BAUD_RATE);
+  while (!Serial);
   btModule.begin(BAUD_RATE);
+
+  // Attach the ESCs to their respective pins and specify the minimum and maximum pulse widths
+  ESC_TOP.attach(ESC_TOP_PIN, MIN_PULSE_WIDTH, MAX_PULSE_WIDTH);
+  ESC_TAIL.attach(ESC_TAIL_PIN, MIN_PULSE_WIDTH, MAX_PULSE_WIDTH);
+
+  // Init Wire (join I2C bus)
+  Wire.begin();
 
   // Init MPU6050 and validate
   if (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G) {
