@@ -1,5 +1,6 @@
 // BOARD: UNO R3
 
+#include <math.h>
 #include <Wire.h>                   // Allows communication with I2C / TWI devices. Here, MPU is I2C.
 #include <Vector.h>                 // Container similar to c++ std::vector
 #include <Servo.h>                  // Used to represent the Electronic Speed Controllers (ESCs)
@@ -8,8 +9,6 @@
 
 
 //-------- USEFUL CONSTANTS AND SETUP --------//
-
-#define PI 3.1415926535897932384626433832795
 
 #define BAUD_RATE 115200
 #define MIN_PULSE_WIDTH 1000
@@ -38,7 +37,7 @@ int flag = 0;
 MPU6050 mpu;
 #define MPU_SDA A4  // data line
 #define MPU_SCL A5  // clock line
-#define MPU_I2C_ADDR 0x68 // If AD0 on the breakout is LOW (0)
+const int MPU_I2C_ADDR = 0x68 // If AD0 on the breakout is LOW (0)
 
 // Raw data from accelerometer, gyroscope
 float accX, accY, accZ;
@@ -68,7 +67,7 @@ Servo ESC_TAIL;   // ESC for the tail rotor / blade
 void computeErrorIMU() {
   // 
   
-  int c = 0;
+  int count = 0;
 
   // Accelerometer summataion
   while (c < SAMPLE) {
@@ -92,7 +91,24 @@ void computeErrorIMU() {
   errAY = errAY / SAMPLE;
   errAZ / errAZ / SAMPLE;
 
-  c = 0;
+  count = 0;
+  while (c < SAMPLE) {
+    Wire.beginTransmission(MPU_I2C_ADDR);
+    Wire.write(0x3B);
+    Wire.endTransmission(false);
+    Wire.requestFrom(MPU_I2C_ADDR, 6, true);  // next 6 registers (from 0x3B --> 0x42)
+    
+    accX = Wire.read() << 8 | Wire.read();
+    accY = Wire.read() << 8 | Wire.read();
+    accZ = Wire.read() << 8 | Wire.read();
+    
+    errAX += ( (atan( accY / sqrt(pow(accX, 2) + pow(accZ, 2))) * 180 / PI );
+    errAY += ( atan( (-1 * accX) / sqrt(pow(accY, 2) + pow(accZ, 2))) * 180 / PI );
+    
+    count++;
+  }
+
+  count = 0;
 
   // Gyroscope summation
   while (c < SAMPLE) {
@@ -109,7 +125,7 @@ void computeErrorIMU() {
     errGY += gyroY;
     errGZ += gyroZ;
 
-    c++;
+    count++;
   }
 
   errGX = errGX / SAMPLE;
@@ -160,7 +176,8 @@ void setup() {
     Serial.println("Could not find a valid MPU6050 sensor.");
     delay(500);
   }
-  
+
+  delay(1000);
 }
 
 
@@ -168,7 +185,7 @@ void setup() {
 void loop() {
   // Read accelerometer data IN
   Wire.beginTransmission(MPU_I2C_ADDR);
-  Wire.write(0x3B); // 0x3B register is ACCEL_XOUT_H, which contains the 8 most significant bits)
+  Wire.write(0x3B); // 0x3B register is ACCEL_XOUT_H, which contains the 8 most significant bits for accelerometer readings)
   Wire.endTransmission(false);  // Keep connection active, since Arduino will send restart.
   Wire.requestFrom(MPU_I2C_ADDR, 14, true); // Request a total of 14 registers
 
