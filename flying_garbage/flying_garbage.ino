@@ -52,6 +52,10 @@ float errGX = 0, errGY = 0, errGZ = 0;
 float accAngleX, accAngleY, gyroAngleX, gyroAngleY, gyroAngleZ;
 float roll, pitch, yaw;
 
+// Other angle + timing information
+float phiFOld = 0, phiFNew, thetaFOld = 0, thetaFNew;
+float tElapsed, tCurrent = 0, tPrevious;
+
 
 //-------- I2C --------//
 byte recvFromI2C;
@@ -62,6 +66,16 @@ unsigned long startTimeI2C;
 Servo ESC_TOP;    // ESC for the top rotor / blade
 Servo ESC_TAIL;   // ESC for the tail rotor / blade
 
+
+//-------- HELPER FUNCTIONS --------//
+
+float roll(const float aX, const float aY, const float aZ) {
+  return ( (atan( accY / sqrt(pow(accX, 2) + pow(accZ, 2))) * 180 / PI );
+}
+
+float pitch(const float aX, const float aY, const float aZ) {
+  return ( atan( (-1 * accX) / sqrt(pow(accY, 2) + pow(accZ, 2))) * 180 / PI );
+}
 
 // Computes the error of the IMU
 void computeErrorIMU() {
@@ -102,8 +116,8 @@ void computeErrorIMU() {
     accY = Wire.read() << 8 | Wire.read();
     accZ = Wire.read() << 8 | Wire.read();
     
-    errAX += ( (atan( accY / sqrt(pow(accX, 2) + pow(accZ, 2))) * 180 / PI );
-    errAY += ( atan( (-1 * accX) / sqrt(pow(accY, 2) + pow(accZ, 2))) * 180 / PI );
+    errAX += roll(accX, accY, accZ);
+    errAY += pitch(accX, accY, accZ);
     
     count++;
   }
@@ -161,7 +175,7 @@ void setup() {
   Wire.write(0x10); // +/- 8g full scale range
   Wire.endTransmission(true);
 
-  // Set the sample errors
+  // Set the sample errors for accelerometer and gyroscope
   computeErrorIMU();
 
   // Init bluetooth baud rate
@@ -177,7 +191,8 @@ void setup() {
     delay(500);
   }
 
-  delay(1000);
+  // Give time for full initialization of components
+  delay(500);
 }
 
 
@@ -194,7 +209,42 @@ void loop() {
   accX = Wire.read() << 8 | Wire.read();
   accY = Wire.read() << 8 | Wire.read();
   accZ = Wire.read() << 8 | Wire.read();
-  temp = Wire.read() << 8 | Wire.read();
+
+  accAngleX = roll(accX, accY, accZ) - errAX;
+  accAngleY = pitch(accX, accY, accZ) - errAY;
+
+  // Low filter for accelerometer data
+  phiFNew = 0.9 * phiFOld + 0.1 * accAngleX;
+  thetaFNew = 0.9 * thetaFOld + 0.1 * accAngleY;
+
+  tPrevious = tCurrent;
+  tCurrent = millis();
+  tElapsed = (tCurrent - tPrevious) / 1000; // div by 1000 since millis() was used --> get seconds
+
+  
+  // Read in the gyroscope data IN
+  Wire.beginTransmission(MPU_I2C_ADDR);
+  Wire.write(0x43);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_I2C_ADDR, 6, true);
+  
+  gyroX = (Wire.read() << 8 | Wire.read()) - errGX;
+  gyroY = (Wire.read() << 8 | Wire.read()) - errGY;
+  gyroZ = (Wire.read() << 8 | Wire.read()) - errGZ;
+
+  // Complementary filter: combine raw gyro angle data with low filter for accelerometer data
+  gyroAngleX = 0.96 * (gyroAngleX + gyroX * elapsedTime) + 0.04 * phiFNew;  // deg/s * s = deg
+  gyroAngleY = 0.96 * (gyroAngleY + gyroY * elapsedTime) + 0.04 * phiFNew;
+
+  roll = gyroAngleX;
+  pitch = gyroAngleY;
+  yaw = yaw + gyroZ * elapsedTime;
+
+  // Update the low filter values for accelerometer values
+  phiFOld = phiFNew;
+  thetaFOld = thetaFNew;
+
+  delay(10);
   
 
   // Reads bluetooth module if bytes available for reading > 0
