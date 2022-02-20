@@ -2,7 +2,6 @@
 
 #include <math.h>
 #include <Wire.h>                   // Allows communication with I2C / TWI devices. Here, MPU is I2C.
-#include <Vector.h>                 // Container similar to c++ std::vector
 #include <Servo.h>                  // Used to represent the Electronic Speed Controllers (ESCs)
 #include <SoftwareSerial.h>         // HC-05 Bluetooth
 #include <MPU6050.h>                // MPU6050 IMU
