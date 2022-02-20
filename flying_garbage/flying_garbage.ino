@@ -227,66 +227,6 @@ void updateIMUValues() {
   thetaFOld = thetaFNew;  
 }
 
-void runMotors() {
-
-  // Set both to low
-  motorTail.esc.write(ESCSettings.low);
-  motorTop.esc.write(ESCSettings.low);
-
-  Serial.println("\nPress 'u' to increase speed, 'd' top to reduce speed, and 'e' to stop all motors.")
-
-  currentSpeed = ESCSettings.low;
-  Serial.print("Current speed: ");
-  Serial.println(currentSpeed);
-
-  while (true) {
-    
-    while (!Serial.available()) {}
-
-      // Reads bluetooth module if bytes available for reading > 0
-      if (btModule.available() > 0) {
-
-      int flag = btModule.read();
-
-        switch (flag) {
-          case 0: {
-             char option = Serial.read();
-  
-             if (option == 'u') {
-                if (currentSpeed + speedStep < ESCSettings.high) {
-                  currentSpeed += speedStep;
-                  Serial.print("Current speed: ");
-                  Serial.println(currentSpeed);
-                  updateIMUValues();
-                
-                } else {
-                  Serial.println("Max speed reached.");
-                }
-             
-             } else if (option == 'd') {
-                if (currentSpeed - speedStep > ESCSettings.low) {
-                  currentSpeed -= speedStep;
-                  Serial.print("Current speed: ");
-                  Serial.println(currentSpeed);
-                  updateIMUValues():
-                  
-                } else {
-                  Serial.println("Min speed reached.");
-                }
-                
-             } else if (option == 'e') {
-              currentSpeed = ESCSettings.low;
-              motorTail.esc.write(currentSpeed);
-              motorTop.esc.write(currentSpeed);
-             }
-          }
-  
-          default: break;
-        }      
-      }     
-  }  
-}
-
 
 //-------- MAIN: SETUP AND LOOP --------//
 
@@ -363,12 +303,13 @@ void loop() {
   while (!Serial.available()) {}
 
     // Reads bluetooth module if bytes available for reading > 0
+    // Bluetooth acts as another COM port when added to laptop (via 0000 or 1234 access password)
     if (btModule.available() > 0) {
 
     int flag = btModule.read();
 
       switch (flag) {
-        case 0: {
+        case 1: {
            char option = Serial.read();
 
            if (option == 'u') {
