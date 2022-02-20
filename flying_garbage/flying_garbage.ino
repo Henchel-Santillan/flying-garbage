@@ -75,7 +75,7 @@ typedef struct ESCSettingsType {
   int high;
 };
 
-int step = 10;
+int speedStep = 10;
 int currentSpeed;
 
 MotorType motorTail;
@@ -106,7 +106,7 @@ void computeErrorIMU() {
     Wire.write(0x3B);
     Wire.endTransmission(false);
     Wire.requestFrom(MPU_I2C_ADDR, 6, true);  // next 6 registers (from 0x3B --> 0x42)
-    while (Wire.available() < 6);
+    while (Wire.available() < 6) {}
 
     accX = Wire.read() << 8 | Wire.read();
     accY = Wire.read() << 8 | Wire.read();
@@ -129,7 +129,7 @@ void computeErrorIMU() {
     Wire.write(0x3B);
     Wire.endTransmission(false);
     Wire.requestFrom(MPU_I2C_ADDR, 6, true);  // next 6 registers (from 0x3B --> 0x42)
-    while (Wire.available() < 6);
+    while (Wire.available() < 6) {}
     
     accX = Wire.read() << 8 | Wire.read();
     accY = Wire.read() << 8 | Wire.read();
@@ -149,7 +149,7 @@ void computeErrorIMU() {
     Wire.write(0x43);
     Wire.endTransmission(false);
     Wire.requestFrom(MPU_I2C_ADDR. 6, true);  // from 0x43 --> 0x48
-    while (Wire.available() < 6);
+    while (Wire.available() < 6) {}
 
     gyroX = Wire.read() << 8 | Wire.read();
     gyroY = Wire.read() << 8 | Wire.read();
@@ -167,7 +167,54 @@ void computeErrorIMU() {
   errGZ = errGZ / SAMPLE;
 }
 
+void runMotors() {
 
+  // Set both to low
+  motorTail.esc.write(ESCSettings.low);
+  motorTop.esc.write(ESCSettings.low);
+
+  Serial.println("\nPress 'u' to increase speed, 'd' top to reduce speed, and 'e' to stop all motors.")
+
+  currentSpeed = ESCSettings.low;
+  Serial.print("Current speed: ");
+  Serial.println(currentSpeed);
+
+  while (true) {
+    
+    while (!Serial.available()) {}
+    char option = Serial.read();
+
+     if (option == 'u') {
+        if (currentSpeed + speedStep < ESCSettings.high) {
+          currentSpeed += speedStep;
+          Serial.print("Current speed: ");
+          Serial.println(currentSpeed);
+        
+        } else {
+          Serial.println("Max speed reached.");
+        }
+     
+     } else if (option == 'd') {
+        if (currentSpeed - speedStep > ESCSettings.low) {
+          currentSpeed -= speedStep;
+          Serial.print("Current speed: ");
+          Serial.println(currentSpeed);
+          
+        } else {
+          Serial.println("Min speed reached.");
+        }
+        
+     } else if (option == 'e') {
+      currentSpeed = ESCSettings.low;
+      motorTail.esc.write(currentSpeed);
+      motorTop.esc.write(currentSpeed);
+     }
+     
+  }  
+}
+
+
+//-------- MAIN: SETUP AND LOOP --------//
 
 void setup() {
 
@@ -212,8 +259,8 @@ void setup() {
   motorTop.pin = ESC_TAIL_PIN;
 
   // Init the ESCSettingsType
-  ESCSettings.low = ESC_LOW_DEFAULT;
-  ESCSettings.high = ESC_HIGH_DEFAULT;
+  ESCSettings.low = ESC_LOW_DEF;
+  ESCSettings.high = ESC_HIGH_DEF;
 
   // Init MPU6050 and validate
   if (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G) {
@@ -232,7 +279,7 @@ void loop() {
   Wire.write(0x3B); // 0x3B register is ACCEL_XOUT_H, which contains the 8 most significant bits for accelerometer readings)
   Wire.endTransmission(false);  // Keep connection active, since Arduino will send restart.
   Wire.requestFrom(MPU_I2C_ADDR, 14, true); // Request a total of 14 registers
-  while (Wire.available() < 6);
+  while (Wire.available() < 6) {}
   
   // Conv 2 8-bit (1 byte) reads into 1 16-bit output (left shift with 8 or 2^3, and bitwise OR with next read)
   // Need this since accelerometer values are 16 bit (2 bytes), and Wire.read() only does 1 byte at a time
@@ -257,7 +304,7 @@ void loop() {
   Wire.write(0x43);
   Wire.endTransmission(false);
   Wire.requestFrom(MPU_I2C_ADDR, 6, true);
-  while (Wire.available() < 6);
+  while (Wire.available() < 6) {}
   
   gyroX = (Wire.read() << 8 | Wire.read()) - errGX;
   gyroY = (Wire.read() << 8 | Wire.read()) - errGY;
@@ -271,6 +318,7 @@ void loop() {
   pitch = gyroAngleY;
   yaw = yaw + gyroZ * elapsedTime;
 
+  // Log the roll, pitch, and yaw to the Serial monitor for observation
   Serial.print("Roll:");
   Serial.println(roll);
 
@@ -283,8 +331,6 @@ void loop() {
   // Update the low filter values for accelerometer values
   phiFOld = phiFNew;
   thetaFold = thetaFNew;
-
-  delay(10);
   
   // Reads bluetooth module if bytes available for reading > 0
   if (btModule.available() > 0) {
