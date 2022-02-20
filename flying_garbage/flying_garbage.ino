@@ -87,11 +87,11 @@ ESCSettingsType ESCSettings;
 //-------- HELPER FUNCTIONS --------//
 
 float roll(const float aX, const float aY, const float aZ) {
-  return ( (atan( accY / sqrt(pow(accX, 2) + pow(accZ, 2))) * 180 / PI );
+  return ( (atan( aY / sqrt(pow(aX, 2) + pow(aZ, 2))) * 180 / PI );
 }
 
 float pitch(const float aX, const float aY, const float aZ) {
-  return ( atan( (-1 * accX) / sqrt(pow(accY, 2) + pow(accZ, 2))) * 180 / PI );
+  return ( atan( (-1 * aX) / sqrt(pow(aY, 2) + pow(aZ, 2))) * 180 / PI );
 }
 
 // Computes the error of the IMU
