@@ -167,113 +167,7 @@ void computeErrorIMU() {
   errGZ = errGZ / SAMPLE;
 }
 
-void runMotors() {
-
-  // Set both to low
-  motorTail.esc.write(ESCSettings.low);
-  motorTop.esc.write(ESCSettings.low);
-
-  Serial.println("\nPress 'u' to increase speed, 'd' top to reduce speed, and 'e' to stop all motors.")
-
-  currentSpeed = ESCSettings.low;
-  Serial.print("Current speed: ");
-  Serial.println(currentSpeed);
-
-  while (true) {
-    
-    while (!Serial.available()) {}
-    char option = Serial.read();
-
-     if (option == 'u') {
-        if (currentSpeed + speedStep < ESCSettings.high) {
-          currentSpeed += speedStep;
-          Serial.print("Current speed: ");
-          Serial.println(currentSpeed);
-        
-        } else {
-          Serial.println("Max speed reached.");
-        }
-     
-     } else if (option == 'd') {
-        if (currentSpeed - speedStep > ESCSettings.low) {
-          currentSpeed -= speedStep;
-          Serial.print("Current speed: ");
-          Serial.println(currentSpeed);
-          
-        } else {
-          Serial.println("Min speed reached.");
-        }
-        
-     } else if (option == 'e') {
-      currentSpeed = ESCSettings.low;
-      motorTail.esc.write(currentSpeed);
-      motorTop.esc.write(currentSpeed);
-     }
-     
-  }  
-}
-
-
-//-------- MAIN: SETUP AND LOOP --------//
-
-void setup() {
-
-  // Pin Definitions for the bluetooth module (rx == receiver == input, tx == transmitter == output)
-  pinMode(rxPin, INPUT);
-  pinMode(txPin, OUTPUT);
-
-  // Init serial baud rate 
-  // 115200 is chosen for slightly faster reception/transmission speeds
-  Serial.begin(BAUD_RATE);
-  while (!Serial);
-
-  // Init Wire (join I2C bus)
-  Wire.begin();
-  
-  // Init comms with MPU6050 (to register 6B, and place a 0, i.e. reset, in the register)
-  Wire.beginTransmission(MPU_I2C_ADDR);
-  Wire.write(0x6B); // requested starting register
-  Wire.write(0x00);
-  Wire.endTransmission(true);
-
-  // Configure the accelerometer
-  Wire.beginTransmission(MPU_I2C_ADDR);
-  Wire.write(0x1C); // ACCEL_CONFIG register
-  Wire.write(0x10); // +/- 8g full scale range
-  Wire.endTransmission(true);
-
-  // Set the sample errors for accelerometer and gyroscope
-  computeErrorIMU();
-
-  // Init bluetooth baud rate
-  btModule.begin(BAUD_RATE);
-
-  // Attach the ESCs to their respective pins and specify the minimum and maximum pulse widths
-  ESCTop.attach(ESC_TOP_PIN, MIN_PULSE_WIDTH, MAX_PULSE_WIDTH);
-  ESCTail.attach(ESC_TAIL_PIN, MIN_PULSE_WIDTH, MAX_PULSE_WIDTH);
-
-  // Tie ESCs and pins to convenience structs
-  motorTail.esc = ESCTop;
-  motorTail.pin = ESC_TOP_PIN;
-  motorTop.esc = ESCTail;
-  motorTop.pin = ESC_TAIL_PIN;
-
-  // Init the ESCSettingsType
-  ESCSettings.low = ESC_LOW_DEF;
-  ESCSettings.high = ESC_HIGH_DEF;
-
-  // Init MPU6050 and validate
-  if (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G) {
-    Serial.println("Could not find a valid MPU6050 sensor.");
-    delay(500);
-  }
-
-  // Give time for full initialization of components
-  delay(500);
-}
-
-
-void loop() {
+void updateIMUValues() {
   // Read accelerometer data IN
   Wire.beginTransmission(MPU_I2C_ADDR);
   Wire.write(0x3B); // 0x3B register is ACCEL_XOUT_H, which contains the 8 most significant bits for accelerometer readings)
@@ -330,10 +224,183 @@ void loop() {
 
   // Update the low filter values for accelerometer values
   phiFOld = phiFNew;
-  thetaFold = thetaFNew;
+  thetaFOld = thetaFNew;  
+}
+
+void runMotors() {
+
+  // Set both to low
+  motorTail.esc.write(ESCSettings.low);
+  motorTop.esc.write(ESCSettings.low);
+
+  Serial.println("\nPress 'u' to increase speed, 'd' top to reduce speed, and 'e' to stop all motors.")
+
+  currentSpeed = ESCSettings.low;
+  Serial.print("Current speed: ");
+  Serial.println(currentSpeed);
+
+  while (true) {
+    
+    while (!Serial.available()) {}
+
+      // Reads bluetooth module if bytes available for reading > 0
+      if (btModule.available() > 0) {
+
+      int flag = btModule.read();
+
+        switch (flag) {
+          case 0: {
+             char option = Serial.read();
   
-  // Reads bluetooth module if bytes available for reading > 0
-  if (btModule.available() > 0) {
-    flag = btModule.read();
+             if (option == 'u') {
+                if (currentSpeed + speedStep < ESCSettings.high) {
+                  currentSpeed += speedStep;
+                  Serial.print("Current speed: ");
+                  Serial.println(currentSpeed);
+                  updateIMUValues();
+                
+                } else {
+                  Serial.println("Max speed reached.");
+                }
+             
+             } else if (option == 'd') {
+                if (currentSpeed - speedStep > ESCSettings.low) {
+                  currentSpeed -= speedStep;
+                  Serial.print("Current speed: ");
+                  Serial.println(currentSpeed);
+                  updateIMUValues():
+                  
+                } else {
+                  Serial.println("Min speed reached.");
+                }
+                
+             } else if (option == 'e') {
+              currentSpeed = ESCSettings.low;
+              motorTail.esc.write(currentSpeed);
+              motorTop.esc.write(currentSpeed);
+             }
+          }
+  
+          default: break;
+        }      
+      }     
+  }  
+}
+
+
+//-------- MAIN: SETUP AND LOOP --------//
+
+void setup() {
+
+  // Pin Definitions for the bluetooth module (rx == receiver == input, tx == transmitter == output)
+  pinMode(rxPin, INPUT);
+  pinMode(txPin, OUTPUT);
+
+  // Init serial baud rate 
+  // 115200 is chosen for slightly faster reception/transmission speeds
+  Serial.begin(BAUD_RATE);
+  while (!Serial);
+
+  // Init Wire (join I2C bus)
+  Wire.begin();
+  
+  // Init comms with MPU6050 (to register 6B, and place a 0, i.e. reset, in the register)
+  Wire.beginTransmission(MPU_I2C_ADDR);
+  Wire.write(0x6B); // requested starting register
+  Wire.write(0x00);
+  Wire.endTransmission(true);
+
+  // Configure the accelerometer
+  Wire.beginTransmission(MPU_I2C_ADDR);
+  Wire.write(0x1C); // ACCEL_CONFIG register
+  Wire.write(0x10); // +/- 8g full scale range
+  Wire.endTransmission(true);
+
+  // Set the sample errors for accelerometer and gyroscope
+  computeErrorIMU();
+
+  // Init bluetooth baud rate
+  btModule.begin(BAUD_RATE);
+
+  // Attach the ESCs to their respective pins and specify the minimum and maximum pulse widths
+  ESCTop.attach(ESC_TOP_PIN, MIN_PULSE_WIDTH, MAX_PULSE_WIDTH);
+  ESCTail.attach(ESC_TAIL_PIN, MIN_PULSE_WIDTH, MAX_PULSE_WIDTH);
+
+  // Tie ESCs and pins to convenience structs
+  motorTail.esc = ESCTop;
+  motorTail.pin = ESC_TOP_PIN;
+  motorTop.esc = ESCTail;
+  motorTop.pin = ESC_TAIL_PIN;
+
+  // Init the ESCSettingsType
+  ESCSettings.low = ESC_LOW_DEF;
+  ESCSettings.high = ESC_HIGH_DEF;
+
+  
+  // Set both to low
+  motorTail.esc.write(ESCSettings.low);
+  motorTop.esc.write(ESCSettings.low);
+
+  Serial.println("\nPress 'u' to increase speed, 'd' top to reduce speed, and 'e' to stop all motors.")
+
+  currentSpeed = ESCSettings.low;
+  Serial.print("Current speed: ");
+  Serial.println(currentSpeed);
+
+  // Init MPU6050 and validate
+  if (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G) {
+    Serial.println("Could not find a valid MPU6050 sensor.");
+    delay(500);
   }
+
+  // Give time for full initialization of components
+  delay(500);
+}
+
+
+void loop() {
+    
+  while (!Serial.available()) {}
+
+    // Reads bluetooth module if bytes available for reading > 0
+    if (btModule.available() > 0) {
+
+    int flag = btModule.read();
+
+      switch (flag) {
+        case 0: {
+           char option = Serial.read();
+
+           if (option == 'u') {
+              if (currentSpeed + speedStep < ESCSettings.high) {
+                currentSpeed += speedStep;
+                Serial.print("Current speed: ");
+                Serial.println(currentSpeed);
+                updateIMUValues();
+              
+              } else {
+                Serial.println("Max speed reached.");
+              }
+           
+           } else if (option == 'd') {
+              if (currentSpeed - speedStep > ESCSettings.low) {
+                currentSpeed -= speedStep;
+                Serial.print("Current speed: ");
+                Serial.println(currentSpeed);
+                updateIMUValues():
+                
+              } else {
+                Serial.println("Min speed reached.");
+              }
+              
+           } else if (option == 'e') {
+            currentSpeed = ESCSettings.low;
+            motorTail.esc.write(currentSpeed);
+            motorTop.esc.write(currentSpeed);
+           }
+        }
+
+        default: break;
+      }      
+   }       
 }
